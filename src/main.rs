@@ -1,4 +1,6 @@
 mod memory;
+mod register;
+mod cpu;
 mod utils;
 
 use memory::Memory;
