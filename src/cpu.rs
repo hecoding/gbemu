@@ -1,5 +1,6 @@
 use crate::memory::Memory;
 use crate::register::Register;
+use crate::utils::join_8_to_16;
 
 pub struct CPU {
     register: Register,
@@ -15,14 +16,29 @@ impl CPU {
     }
 
     pub fn step(&mut self) {
-        let op = self.read_instruction();
+        let op = self.read_immediate_8();
         self.exec(op);
     }
 
-    fn read_instruction(&mut self) -> u8 {
+    fn read_immediate_8(&mut self) -> u8 {
         let op = self.memory.read_8(self.register.pc as usize);
         self.register.pc += 1;
         op
+    }
+
+    fn read_immediate_16(&mut self) -> u16 {
+        join_8_to_16(self.read_immediate_8(), self.read_immediate_8())
+    }
+
+    fn stack_push(&mut self, n: u16) {
+        self.register.sp -= 2;
+        self.memory.write_16(self.register.sp as usize, n);
+    }
+
+    fn stack_pop(&mut self) -> u16 {
+        let n = self.memory.read_16(self.register.sp as usize);
+        self.register.sp += 2;
+        n
     }
 
     fn get_register(&self, i: u8) -> u8 {
@@ -39,7 +55,12 @@ impl CPU {
         }
     }
 
+    fn get_instruction_fields(&self, op: u8) -> (u8, u8, u8, u8, u8) {
+        (op >> 6, op >> 3 & 7, op & 7, op >> 4 & 4, op >> 3 & 8)
+    }
+
     fn exec(&mut self, op: u8) {
+        let (x, y, z, p, q) = self.get_instruction_fields(op);
 
         match op {
             _ => panic!("Unimplemented op {:x}", op)
