@@ -43,24 +43,12 @@ impl Memory {
     }
 
     pub fn read_16(&self, i: usize) -> u16 {
-        match i {
-            0..=0x8000 => join_8_to_16(self.cart[i], self.cart[i + 1]),
-            0xff80..=0xffff => join_8_to_16(self.stack[i - STACK_OFFSET], self.stack[i + 1 - STACK_OFFSET]),
-            _ => panic!("mem access {}", i),
-        }
+        join_8_to_16(self.read_8(i), self.read_8(i + 1))
     }
 
     pub fn write_16(&mut self, i: usize, n: u16) {
         let ns = split_16_to_8(n);
-
-        // TODO enable destructuring assignments when stable
-        match i {
-            0..=0x8000 => { self.cart[i] = ns.0; self.cart[i + 1] = ns.1;}
-            0xff80..=0xffff => {
-                self.stack[i - STACK_OFFSET] = ns.0;
-                self.stack[i + 1 - STACK_OFFSET] = ns.1;
-            },
-            _ => panic!("mem access {}", i),
-        }
+        self.write_8(i, ns.0);
+        self.write_8(i + 1, ns.1);
     }
 }
