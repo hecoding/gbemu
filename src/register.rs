@@ -14,6 +14,10 @@ pub struct Register {
 }
 
 impl Register {
+    pub fn new() -> Register {
+        Register{ a: 0, f: 0, b: 0, c: 0, d: 0, e: 0, h: 0, l: 0, sp: 0xfffe, pc: 0 }
+    }
+
     pub fn get_hl(&self) -> u16 {
         join_8_to_16(self.h, self.l)
     }
