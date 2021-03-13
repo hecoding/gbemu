@@ -22,7 +22,7 @@ enum Flags {
 
 impl Register {
     pub fn new() -> Register {
-        Register{ a: 0, f: 0, b: 0, c: 0, d: 0, e: 0, h: 0, l: 0, sp: 0xfffe, pc: 0x100 }
+        Register{ a: 0x01, f: 0xB0, b: 0, c: 0x13, d: 0, e: 0xD8, h: 0x01, l: 0x4D, sp: 0xfffe, pc: 0x100 }
     }
 
     pub fn get_hl(&self) -> u16 {
