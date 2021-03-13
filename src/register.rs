@@ -13,9 +13,16 @@ pub struct Register {
     pub pc: u16,
 }
 
+enum Flags {
+    Zero = 1 << 7,
+    Negative = 1 << 6,
+    HalfCarry = 1 << 5,
+    Carry = 1 << 4,
+}
+
 impl Register {
     pub fn new() -> Register {
-        Register{ a: 0, f: 0, b: 0, c: 0, d: 0, e: 0, h: 0, l: 0, sp: 0xfffe, pc: 0 }
+        Register{ a: 0, f: 0, b: 0, c: 0, d: 0, e: 0, h: 0, l: 0, sp: 0xfffe, pc: 0x100 }
     }
 
     pub fn get_hl(&self) -> u16 {
@@ -62,5 +69,29 @@ impl Register {
             3 => {self.a = ns.0; self.f = ns.1},
             _ => self.set_rp(i, n)
         }
+    }
+
+    fn set_bit(&mut self, bit: Flags, b: bool) {
+        if b {
+            self.f |= bit as u8
+        } else {
+            self.f &= !(bit as u8)
+        }
+    }
+
+    pub fn set_zero_flag(&mut self, b: bool) {
+        self.set_bit(Flags::Zero, b);
+    }
+
+    pub fn set_negative_flag(&mut self, b: bool) {
+        self.set_bit(Flags::Negative, b);
+    }
+
+    pub fn set_half_carry_flag(&mut self, b: bool) {
+        self.set_bit(Flags::HalfCarry, b);
+    }
+
+    pub fn set_carry_flag(&mut self, b: bool) {
+        self.set_bit(Flags::Carry, b);
     }
 }
