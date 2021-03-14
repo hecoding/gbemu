@@ -260,6 +260,16 @@ impl CPU {
                 }
             }
             // calls
+            "1100_1101" => { // call nn
+                self.stack_push(self.register.pc);
+                self.register.pc = self.read_immediate_16(); // todo check endianness
+            }
+            "11yy_y100" => { // call cc, nn
+                if self.jump_condition_check(y) {
+                    self.stack_push(self.register.pc);
+                    self.register.pc = self.read_immediate_16(); // todo check endianness
+                }
+            }
             // restarts
             "11yy_y111" => { // rst n
                 self.stack_push(self.register.pc);
