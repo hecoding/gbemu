@@ -71,6 +71,22 @@ impl CPU {
         }
     }
 
+    fn get_bit_from_register(&self, register: u8, bit: u8) -> bool {
+        let b = self.get_register(register) & (1 << bit);
+        b != 0
+    }
+
+    fn set_bit_from_register(&mut self, register: u8, bit: u8, value: bool) {
+        let mut r = self.get_register(register);
+        let mask = 1 << bit;
+        if value { // same as registers.set_bit()
+            r |= mask as u8
+        } else {
+            r &= !(mask as u8)
+        }
+        self.set_register(register, r);
+    }
+
     fn is_result_zero(n: u8) -> bool {
         n == 0
     }
@@ -92,10 +108,10 @@ impl CPU {
 
     fn jump_condition_check(&self, y: u8) -> bool {
         match y {
-            0 => self.register.get_bit(Flags::Zero) == 0,
-            1 => self.register.get_bit(Flags::Zero) == 1,
-            2 => self.register.get_bit(Flags::Carry) == 0,
-            3 => self.register.get_bit(Flags::Carry) == 1,
+            0 => self.register.get_bit(Flags::Zero) == false,
+            1 => self.register.get_bit(Flags::Zero) == true,
+            2 => self.register.get_bit(Flags::Carry) == false,
+            3 => self.register.get_bit(Flags::Carry) == true,
             _ => panic!("Invalid jump condition")
         }
     }
@@ -232,7 +248,7 @@ impl CPU {
             }
             // misc
             // rotations and shifts
-            // bit ops
+            // bit ops (all in exec_alt)
             // jumps
             "1100_0011" => self.register.pc = self.read_immediate_16(), // jp nn
             "11yy_y010" => { // jp cc, nn
@@ -288,6 +304,10 @@ impl CPU {
                 self.register.pc = self.stack_pop(); // todo check if ok with current endianness
                 panic!("Unimplemented enable interrupts")
             }
+            "11001011" => { // cb prefix, using alt opcodes
+                let op_next = self.read_immediate_8();
+                self.exec_alt(op_next); // todo check if this reaches cb
+            }
             _ => panic!("Unimplemented op {:x}", op)
         }
         println!("{:#x?}", self.register)
@@ -295,7 +315,7 @@ impl CPU {
 
     fn alu(&mut self, y: u8, n: u8) {
         let a = self.register.a;
-        let carry_flag = self.register.get_carry_flag();
+        let carry_flag = self.register.get_carry_flag() as u8;
 
         match y {
             0 => { // add
@@ -361,6 +381,28 @@ impl CPU {
                 self.register.a = a
             },
             _ => panic!("Illegal alu opcode {}", y)
+        }
+    }
+
+    #[bitmatch]
+    fn exec_alt(&mut self, op: u8) {
+        #[bitmatch]
+        match op {
+            // bit ops
+            "01yy_yzzz" => { // bit b, r
+                let bit = self.get_bit_from_register(z, y);
+
+                self.register.set_zero_flag(bit == false);
+                self.register.set_negative_flag(false);
+                self.register.set_half_carry_flag(true);
+            }
+            "11yy_yzzz" => { // set b, r
+                self.set_bit_from_register(z, y, true);
+            }
+            "10yy_yzzz" => { // res b, r
+                self.set_bit_from_register(z, y, false);
+            }
+            _ => panic!("Unimplemented 0xcb prefixed op {:x}", op)
         }
     }
 }

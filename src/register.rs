@@ -78,16 +78,16 @@ impl Register {
         }
     }
 
-    fn set_bit(&mut self, bit: Flags, b: bool) {
-        if b {
+    fn set_bit(&mut self, bit: Flags, value: bool) {
+        if value {
             self.f |= bit as u8
         } else {
             self.f &= !(bit as u8)
         }
     }
 
-    pub fn get_bit(&self, bit: Flags) -> u8 {
-        self.f & bit as u8
+    pub fn get_bit(&self, bit: Flags) -> bool {
+        (self.f & (bit as u8)) != 0
     }
 
     pub fn set_zero_flag(&mut self, b: bool) {
@@ -106,7 +106,7 @@ impl Register {
         self.set_bit(Flags::Carry, b);
     }
 
-    pub fn get_carry_flag(&self) -> u8 {
+    pub fn get_carry_flag(&self) -> bool {
         self.get_bit(Flags::Carry)
     }
 }
