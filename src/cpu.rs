@@ -261,6 +261,10 @@ impl CPU {
             }
             // calls
             // restarts
+            "11yy_y111" => { // rst n
+                self.stack_push(self.register.pc);
+                self.register.pc = y as u16 * 8;
+            }
             // returns
             _ => panic!("Unimplemented op {:x}", op)
         }
