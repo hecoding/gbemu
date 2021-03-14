@@ -276,6 +276,18 @@ impl CPU {
                 self.register.pc = y as u16 * 8;
             }
             // returns
+            "1100_1001" => { // ret
+                self.register.pc = self.stack_pop(); // todo check if ok with current endianness
+            }
+            "11yy_y000" => { // ret cc
+                if self.jump_condition_check(y) {
+                    self.register.pc = self.stack_pop(); // todo check if ok with current endianness
+                }
+            }
+            "1101_1001" => { // reti
+                self.register.pc = self.stack_pop(); // todo check if ok with current endianness
+                panic!("Unimplemented enable interrupts")
+            }
             _ => panic!("Unimplemented op {:x}", op)
         }
         println!("{:#x?}", self.register)
