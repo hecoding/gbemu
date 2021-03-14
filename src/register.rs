@@ -71,12 +71,23 @@ impl Register {
         }
     }
 
+    pub fn get_rp3(&self, i: u8) -> u16 {
+        match i {
+            3 => self.get_rp(2),
+            _ => self.get_rp(i),
+        }
+    }
+
     fn set_bit(&mut self, bit: Flags, b: bool) {
         if b {
             self.f |= bit as u8
         } else {
             self.f &= !(bit as u8)
         }
+    }
+
+    fn get_bit(&self, bit: Flags) -> u8 {
+        self.f & bit as u8
     }
 
     pub fn set_zero_flag(&mut self, b: bool) {
@@ -93,5 +104,9 @@ impl Register {
 
     pub fn set_carry_flag(&mut self, b: bool) {
         self.set_bit(Flags::Carry, b);
+    }
+
+    pub fn get_carry_flag(&self) -> u8 {
+        self.get_bit(Flags::Carry)
     }
 }
