@@ -13,7 +13,7 @@ pub struct Register {
     pub pc: u16,
 }
 
-enum Flags {
+pub enum Flags {
     Zero = 1 << 7,
     Negative = 1 << 6,
     HalfCarry = 1 << 5,
@@ -86,7 +86,7 @@ impl Register {
         }
     }
 
-    fn get_bit(&self, bit: Flags) -> u8 {
+    pub fn get_bit(&self, bit: Flags) -> u8 {
         self.f & bit as u8
     }
 
