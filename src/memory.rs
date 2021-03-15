@@ -4,7 +4,12 @@ use crate::utils::{join_8_to_16, split_16_to_8};
 
 pub struct Memory {
     cart: Vec<u8>,
-    stack: Vec<u8>, // stack in GMB Z80 is a part of the regular memory
+    video_ram: Vec<u8>,
+    switchable_ram: Vec<u8>,
+    ram: Vec<u8>, // in cgb mode this is split in bank 0 and switchable bank 1
+    oam: Vec<u8>, // sprites stuff
+    io_port: Vec<u8>,
+    stack: Vec<u8>, // stack in GMB Z80 is a part of the regular memory, simply called zero-page ram
 }
 
 const STACK_OFFSET: usize = 0xff80;
@@ -13,7 +18,12 @@ impl Memory {
     pub fn new(filepath: &str) -> Memory {
         Memory {
             cart: Memory::read_cartridge(filepath),
-            stack: Vec::with_capacity(0x80),
+            video_ram: vec![0; 0x2000],
+            switchable_ram: vec![0; 0x2000],
+            ram: vec![0; 0x2000],
+            oam: vec![0; 0x100],
+            io_port: vec![0; 0x100],
+            stack: vec![0; 0x80],
         }
     }
 
@@ -28,17 +38,25 @@ impl Memory {
 
     pub fn read_8(&self, i: usize) -> u8 {
         match i {
-            0..=0x8000 => self.cart[i],
+            0..=0x7fff => self.cart[i],
+            0x8000..=0x9fff => panic!("vram not implemented"),
+            0xa000..=0xbfff => self.switchable_ram[i - 0xa000],
+            0xc000..=0xdfff => self.ram[i - 0xc000],
+            0xe000..=0xfdff => self.ram[i - 0xe000], // ram echo
             0xff80..=0xffff => self.stack[i - STACK_OFFSET],
-            _ => panic!("mem access {}", i),
+            _ => panic!("mem read {}", i),
         }
     }
 
     pub fn write_8(&mut self, i: usize, n: u8) {
         match i {
-            0..=0x8000 => self.cart[i] = n,
+            0..=0x7fff => self.cart[i] = n,
+            0x8000..=0x9fff => panic!("vram not implemented"),
+            0xa000..=0xbfff => self.switchable_ram[i - 0xa000] = n,
+            0xc000..=0xdfff => self.ram[i - 0xc000] = n,
+            0xe000..=0xfdff => self.ram[i - 0xe000] = n, // ram echo
             0xff80..=0xffff => self.stack[i - STACK_OFFSET] = n,
-            _ => panic!("mem access {}", i),
+            _ => panic!("mem write {}", i),
         }
     }
 
