@@ -2,7 +2,7 @@ use bitmatch::bitmatch;
 
 use crate::memory::Memory;
 use crate::register::{Register, Flags};
-use crate::utils::join_8_to_16;
+use crate::utils::{join_8_to_16, join_8_to_16_lsf};
 
 pub struct CPU {
     register: Register,
@@ -29,12 +29,12 @@ impl CPU {
     }
 
     fn read_immediate_16(&mut self) -> u16 {
-        join_8_to_16(self.read_immediate_8(), self.read_immediate_8())
+        join_8_to_16_lsf(self.read_immediate_8(), self.read_immediate_8())
     }
 
     fn stack_push(&mut self, n: u16) {
         self.register.sp -= 2;
-        self.memory.write_16(self.register.sp as usize, n);
+        self.memory.write_16(self.register.sp as usize, n); // todo is this write lsf?
     }
 
     fn stack_pop(&mut self) -> u16 {
@@ -139,32 +139,32 @@ impl CPU {
                 self.register.a = self.memory.read_8(nn as usize);
             }
             "1111_0010" => { // ld a, (c)
-                self.register.a = self.memory.read_8(0xff00 + self.register.c as usize); // todo wrapping add?
+                self.register.a = self.memory.read_8(0xff00 + self.register.c as usize);
             }
             "1110_0010" => { // ld (c), a
-                self.memory.write_8(0xff00 + self.register.c as usize, self.register.a); // todo wrapping add?
+                self.memory.write_8(0xff00 + self.register.c as usize, self.register.a);
             }
             "00pp_0010" => { // ld nn(+/-), a
                 self.memory.write_8(self.register.get_rp3(p) as usize, self.register.a);
 
                 let hl = self.register.get_hl();
-                let hl_op = if p == 2 {hl.wrapping_add(1)} else if p == 3 {hl.wrapping_sub(1)} else {hl}; // todo check if this works
+                let hl_op = if p == 2 {hl.wrapping_add(1)} else if p == 3 {hl.wrapping_sub(1)} else {hl};
                 self.register.set_hl(hl_op);
             }
             "00pp_1010" => { // ld a, nn(+/-)
                 self.register.a = self.memory.read_8(self.register.get_rp3(p) as usize);
 
                 let hl = self.register.get_hl();
-                let hl_op = if p == 2 {hl.wrapping_add(1)} else if p == 3 {hl.wrapping_sub(1)} else {hl}; // todo check if this works
+                let hl_op = if p == 2 {hl.wrapping_add(1)} else if p == 3 {hl.wrapping_sub(1)} else {hl};
                 self.register.set_hl(hl_op);
             }
             "1110_0000" => { // ldh (n), a
                 let n = self.read_immediate_8();
-                self.memory.write_8(0xff00 + n as usize, self.register.a); // todo wrapping add?
+                self.memory.write_8(0xff00 + n as usize, self.register.a);
             }
             "1111_0000" => { // ldh a, (n)
                 let n = self.read_immediate_8();
-                self.register.a = self.memory.read_8(0xff00 + n as usize); // todo wrapping add?
+                self.register.a = self.memory.read_8(0xff00 + n as usize);
             }
             // 16-bit loads
             "00pp_0001" => { // ld n, nn
@@ -185,7 +185,7 @@ impl CPU {
             },
             "0000_1000" => { // ld (nn), sp
                 let nn = self.read_immediate_16();
-                self.memory.write_16(nn as usize, self.register.sp)
+                self.memory.write_16(nn as usize, self.register.sp) // todo is this write lsf?
             },
             "11pp_0101" => self.stack_push(self.register.get_rp2(p)), // push nn
             "11pp_0001" => { // pop nn
@@ -193,11 +193,11 @@ impl CPU {
                 self.register.set_rp2(p, nn)
             },
             // 8-bit alu
-            "11yy_y110" => {
+            "11yy_y110" => { // alu n
                 let n = self.read_immediate_8();
                 self.alu(y, n);
             }
-            "10yy_yzzz" => {
+            "10yy_yzzz" => { // alu r
                 let n = self.get_register(z);
                 self.alu(y, n);
             }
@@ -252,8 +252,9 @@ impl CPU {
             // jumps
             "1100_0011" => self.register.pc = self.read_immediate_16(), // jp nn
             "11yy_y010" => { // jp cc, nn
+                let nn = self.read_immediate_16(); // todo check if endianness is correct
                 if self.jump_condition_check(y) {
-                    self.register.pc = self.read_immediate_16(); // todo check if endianness is correct
+                    self.register.pc = nn
                 }
             }
             "1110_1001" => self.register.pc = self.register.get_hl(), // jp hl
@@ -266,8 +267,8 @@ impl CPU {
                 }
             },
             "00yy_y000" => { // jr cc, n
+                let n = self.read_immediate_8() as i8;
                 if self.jump_condition_check(y - 4) {
-                    let n = self.read_immediate_8() as i8;
                     if n > 0 {
                         self.register.pc = self.register.pc.wrapping_add(n as u16)
                     } else {
