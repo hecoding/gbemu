@@ -1,6 +1,7 @@
 mod memory;
 mod register;
 mod cpu;
+mod interrupt;
 mod utils;
 
 use cpu::CPU;
