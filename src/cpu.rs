@@ -2,11 +2,13 @@ use bitmatch::bitmatch;
 
 use crate::memory::Memory;
 use crate::register::{Register, Flags};
+use crate::interrupt::Interrupt;
 use crate::utils::{join_8_to_16, join_8_to_16_lsf};
 
 pub struct CPU {
     register: Register,
     memory: Memory,
+    interrupt: Interrupt,
 }
 
 impl CPU {
@@ -14,6 +16,7 @@ impl CPU {
         CPU {
             register: Register::new(),
             memory: Memory::new(filepath),
+            interrupt: Interrupt::new(),
         }
     }
 
@@ -41,6 +44,11 @@ impl CPU {
         let n = self.memory.read_16(self.register.sp as usize);
         self.register.sp += 2;
         n
+    }
+
+    pub fn jump_to(&mut self, address: u16) {
+        self.stack_push(self.register.pc);
+        self.register.pc = address;
     }
 
     fn get_register(&self, i: u8) -> u8 {
@@ -118,8 +126,13 @@ impl CPU {
 
     #[bitmatch]
     fn exec(&mut self, op: u8) {
+        let previous_delayed_interrupt_enable = self.interrupt.delayed_master_enable;
+        let previous_delayed_interrupt_disable = self.interrupt.delayed_master_disable;
         println!("-----------");
         println!("op {:x}", op);
+        if op == 0x3e {
+            println!("yeee")
+        }
         #[bitmatch]
         match op {
             "0000_0000" => {}, // no op
@@ -247,6 +260,8 @@ impl CPU {
                 self.register.set_rp(p, self.register.get_rp(p).wrapping_sub(1));
             }
             // misc
+            "1111_0011" => self.interrupt.delayed_master_disable = true, // di
+            "1111_1011" => self.interrupt.delayed_master_enable = true, // ei
             // rotations and shifts
             // bit ops (all in exec_alt)
             // jumps
@@ -303,7 +318,7 @@ impl CPU {
             }
             "1101_1001" => { // reti
                 self.register.pc = self.stack_pop(); // todo check if ok with current endianness
-                panic!("Unimplemented enable interrupts")
+                self.interrupt.master = true
             }
             "11001011" => { // cb prefix, using alt opcodes
                 let op_next = self.read_immediate_8();
@@ -311,6 +326,17 @@ impl CPU {
             }
             _ => panic!("Unimplemented op {:x}", op)
         }
+
+        if previous_delayed_interrupt_enable && self.interrupt.delayed_master_enable {
+            self.interrupt.delayed_master_enable = false;
+            self.interrupt.master = true;
+        }
+        if previous_delayed_interrupt_disable && self.interrupt.delayed_master_disable {
+            self.interrupt.delayed_master_disable = false;
+            self.interrupt.master = false;
+        }
+        self.interrupt.step(&mut self);
+
         println!("{:#x?}", self.register)
     }
 
