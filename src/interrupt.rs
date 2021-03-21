@@ -2,8 +2,6 @@ pub struct Interrupt {
     pub master: bool,
     pub delayed_master_enable: bool,
     pub delayed_master_disable: bool,
-    pub enable: u8,
-    pub flag: u8,
 }
 
 pub enum Interrupts {
@@ -20,8 +18,6 @@ impl Interrupt{
             master: true,
             delayed_master_enable: false,
             delayed_master_disable: false,
-            enable: 0,
-            flag: 0,
         }
     }
 }

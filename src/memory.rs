@@ -10,6 +10,9 @@ pub struct Memory {
     oam: Vec<u8>, // sprites stuff
     io_port: Vec<u8>,
     stack: Vec<u8>, // stack in GMB Z80 is a part of the regular memory, simply called zero-page ram
+
+    pub interrupt_enable: u8,
+    pub interrupt_flag: u8,
 }
 
 const STACK_OFFSET: usize = 0xff80;
@@ -24,6 +27,9 @@ impl Memory {
             oam: vec![0; 0x100],
             io_port: vec![0; 0x100],
             stack: vec![0; 0x80],
+
+            interrupt_enable: 0,
+            interrupt_flag: 0,
         }
     }
 
@@ -43,7 +49,9 @@ impl Memory {
             0xa000..=0xbfff => self.switchable_ram[i - 0xa000],
             0xc000..=0xdfff => self.ram[i - 0xc000],
             0xe000..=0xfdff => self.ram[i - 0xe000], // ram echo
-            0xff80..=0xffff => self.stack[i - STACK_OFFSET],
+            0xff0f => self.interrupt_flag,
+            0xff80..=0xfffe => self.stack[i - STACK_OFFSET],
+            0xffff => self.interrupt_enable,
             _ => panic!("mem read {}", i),
         }
     }
@@ -55,7 +63,9 @@ impl Memory {
             0xa000..=0xbfff => self.switchable_ram[i - 0xa000] = n,
             0xc000..=0xdfff => self.ram[i - 0xc000] = n,
             0xe000..=0xfdff => self.ram[i - 0xe000] = n, // ram echo
-            0xff80..=0xffff => self.stack[i - STACK_OFFSET] = n,
+            0xff0f => self.interrupt_flag = n,
+            0xff80..=0xfffe => self.stack[i - STACK_OFFSET] = n,
+            0xffff => self.interrupt_enable = n,
             _ => panic!("mem write {}", i),
         }
     }

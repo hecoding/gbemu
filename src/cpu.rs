@@ -429,11 +429,11 @@ impl CPU {
     }
 
     fn interrupt_step(&mut self) {
-        if self.interrupt.master && self.interrupt.enable != 0 && self.interrupt.flag != 0 {
-            let fired = self.interrupt.enable & self.interrupt.flag;
+        if self.interrupt.master && self.memory.interrupt_enable != 0 && self.memory.interrupt_flag != 0 {
+            let fired = self.memory.interrupt_enable & self.memory.interrupt_flag;
 
             if fired & (Interrupts::VBlank as u8) != 0 {
-                self.interrupt.flag &= !(Interrupts::VBlank as u8);
+                self.memory.interrupt_flag &= !(Interrupts::VBlank as u8);
                 self.interrupt.master = false;
                 self.stack_push(self.register.pc);
                 self.register.pc = 0x40;
@@ -441,7 +441,7 @@ impl CPU {
             }
 
             if fired & (Interrupts::LCD as u8) != 0 {
-                self.interrupt.flag &= !(Interrupts::LCD as u8);
+                self.memory.interrupt_flag &= !(Interrupts::LCD as u8);
                 self.interrupt.master = false;
                 self.stack_push(self.register.pc);
                 self.register.pc = 0x48;
@@ -449,7 +449,7 @@ impl CPU {
             }
 
             if fired & (Interrupts::Timer as u8) != 0 {
-                self.interrupt.flag &= !(Interrupts::Timer as u8);
+                self.memory.interrupt_flag &= !(Interrupts::Timer as u8);
                 self.interrupt.master = false;
                 self.stack_push(self.register.pc);
                 self.register.pc = 0x50;
@@ -457,7 +457,7 @@ impl CPU {
             }
 
             if fired & (Interrupts::Transfer as u8) != 0 {
-                self.interrupt.flag &= !(Interrupts::Transfer as u8);
+                self.memory.interrupt_flag &= !(Interrupts::Transfer as u8);
                 self.interrupt.master = false;
                 self.stack_push(self.register.pc);
                 self.register.pc = 0x58;
@@ -465,7 +465,7 @@ impl CPU {
             }
 
             if fired & (Interrupts::Keypad as u8) != 0 {
-                self.interrupt.flag &= !(Interrupts::Keypad as u8);
+                self.memory.interrupt_flag &= !(Interrupts::Keypad as u8);
                 self.interrupt.master = false;
                 self.stack_push(self.register.pc);
                 self.register.pc = 0x60;
