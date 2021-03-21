@@ -1,5 +1,6 @@
 use crate::utils::{join_8_to_16, split_16_to_8};
 
+#[derive(Debug)]
 pub struct Register {
     pub a: u8,
     pub f: u8,
