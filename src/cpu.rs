@@ -329,6 +329,7 @@ impl CPU {
         }
 
         println!("{:#x?}", self.register);
+        println!("interrupt master {}, enable {}, flag {}", self.interrupt.master, self.memory.interrupt_enable, self.memory.interrupt_flag);
         0
     }
 
