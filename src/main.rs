@@ -9,6 +9,6 @@ use cpu::CPU;
 fn main() {
     let mut cpu = CPU::new("roms/Tetris (World) (Rev A).gb");
     loop {
-        cpu.step()
+        cpu.step();
     }
 }

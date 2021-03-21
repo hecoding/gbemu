@@ -9,6 +9,7 @@ pub struct CPU {
     register: Register,
     memory: Memory,
     interrupt: Interrupt,
+    halted: bool,
 }
 
 impl CPU {
@@ -17,12 +18,18 @@ impl CPU {
             register: Register::new(),
             memory: Memory::new(filepath),
             interrupt: Interrupt::new(),
+            halted: false,
         }
     }
 
-    pub fn step(&mut self) {
-        let op = self.read_immediate_8();
-        self.exec(op);
+    pub fn step(&mut self) -> usize {
+        self.interrupt.update_delays();
+        match self.interrupt_step() {
+            0 => {},
+            n => return n,
+        }
+
+        if self.halted { 1 } else { self.exec() }
     }
 
     fn read_immediate_8(&mut self) -> u8 {
@@ -120,9 +127,8 @@ impl CPU {
     }
 
     #[bitmatch]
-    fn exec(&mut self, op: u8) {
-        let previous_delayed_interrupt_enable = self.interrupt.delayed_master_enable;
-        let previous_delayed_interrupt_disable = self.interrupt.delayed_master_disable;
+    fn exec(&mut self) -> usize {
+        let op = self.read_immediate_8();
         println!("-----------");
         println!("op {:x}", op);
         if op == 0x3e {
@@ -255,8 +261,8 @@ impl CPU {
                 self.register.set_rp(p, self.register.get_rp(p).wrapping_sub(1));
             }
             // misc
-            "1111_0011" => self.interrupt.delayed_master_disable = true, // di
-            "1111_1011" => self.interrupt.delayed_master_enable = true, // ei
+            "1111_0011" => self.interrupt.delayed_disable = 2, // di
+            "1111_1011" => self.interrupt.delayed_enable = 2, // ei
             // rotations and shifts
             // bit ops (all in exec_alt)
             // jumps
@@ -322,17 +328,8 @@ impl CPU {
             _ => panic!("Unimplemented op {:x}", op)
         }
 
-        if previous_delayed_interrupt_enable && self.interrupt.delayed_master_enable {
-            self.interrupt.delayed_master_enable = false;
-            self.interrupt.master = true;
-        }
-        if previous_delayed_interrupt_disable && self.interrupt.delayed_master_disable {
-            self.interrupt.delayed_master_disable = false;
-            self.interrupt.master = false;
-        }
-        self.interrupt_step();
-
-        println!("{:#x?}", self.register)
+        println!("{:#x?}", self.register);
+        0
     }
 
     fn alu(&mut self, y: u8, n: u8) {
@@ -428,7 +425,7 @@ impl CPU {
         }
     }
 
-    fn interrupt_step(&mut self) {
+    fn interrupt_step(&mut self) -> usize {
         if self.interrupt.master && self.memory.interrupt_enable != 0 && self.memory.interrupt_flag != 0 {
             let fired = self.memory.interrupt_enable & self.memory.interrupt_flag;
 
@@ -437,7 +434,7 @@ impl CPU {
                 self.interrupt.master = false;
                 self.stack_push(self.register.pc);
                 self.register.pc = 0x40;
-                return
+                return 4
             }
 
             if fired & (Interrupts::LCD as u8) != 0 {
@@ -445,7 +442,7 @@ impl CPU {
                 self.interrupt.master = false;
                 self.stack_push(self.register.pc);
                 self.register.pc = 0x48;
-                return
+                return 4
             }
 
             if fired & (Interrupts::Timer as u8) != 0 {
@@ -453,7 +450,7 @@ impl CPU {
                 self.interrupt.master = false;
                 self.stack_push(self.register.pc);
                 self.register.pc = 0x50;
-                return
+                return 4
             }
 
             if fired & (Interrupts::Transfer as u8) != 0 {
@@ -461,7 +458,7 @@ impl CPU {
                 self.interrupt.master = false;
                 self.stack_push(self.register.pc);
                 self.register.pc = 0x58;
-                return
+                return 4
             }
 
             if fired & (Interrupts::Keypad as u8) != 0 {
@@ -469,8 +466,9 @@ impl CPU {
                 self.interrupt.master = false;
                 self.stack_push(self.register.pc);
                 self.register.pc = 0x60;
-                return
+                return 4
             }
         }
+        0
     }
 }

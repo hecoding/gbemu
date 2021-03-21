@@ -1,7 +1,7 @@
 pub struct Interrupt {
     pub master: bool,
-    pub delayed_master_enable: bool,
-    pub delayed_master_disable: bool,
+    pub delayed_enable: usize,
+    pub delayed_disable: usize,
 }
 
 pub enum Interrupts {
@@ -16,8 +16,21 @@ impl Interrupt{
     pub fn new() -> Interrupt {
         Interrupt{
             master: true,
-            delayed_master_enable: false,
-            delayed_master_disable: false,
+            delayed_enable: 0,
+            delayed_disable: 0,
+        }
+    }
+
+    pub fn update_delays(&mut self) {
+        match self.delayed_enable {
+            2 => self.delayed_enable = 1,
+            1 => { self.delayed_enable = 0; self.master = true }
+            _ => {},
+        }
+        match self.delayed_disable {
+            2 => self.delayed_disable = 1,
+            1 => { self.delayed_disable = 0; self.master = false }
+            _ => {},
         }
     }
 }
