@@ -1,10 +1,11 @@
 use std::fs::File;
 use std::io::Read;
+use crate::gpu::GPU;
 use crate::utils::{join_8_to_16, split_16_to_8};
 
 pub struct Memory {
     cart: Vec<u8>,
-    video_ram: Vec<u8>,
+    gpu: GPU,
     switchable_ram: Vec<u8>,
     ram: Vec<u8>, // in cgb mode this is split in bank 0 and switchable bank 1
     oam: Vec<u8>, // sprites stuff
@@ -21,7 +22,7 @@ impl Memory {
     pub fn new(filepath: &str) -> Memory {
         Memory {
             cart: Memory::read_cartridge(filepath),
-            video_ram: vec![0; 0x2000],
+            gpu: GPU::new(),
             switchable_ram: vec![0; 0x2000],
             ram: vec![0; 0x2000],
             oam: vec![0; 0x100],
@@ -43,9 +44,9 @@ impl Memory {
     }
 
     pub fn read_8(&self, i: usize) -> u8 {
-        match i {
+        match i { // TODO implement the "read 0s" and so from invalid regions
             0..=0x7fff => self.cart[i],
-            0x8000..=0x9fff => panic!("vram not implemented"),
+            0x8000..=0x9fff => self.gpu.read_vram(i - 0x8000),
             0xa000..=0xbfff => self.switchable_ram[i - 0xa000],
             0xc000..=0xdfff => self.ram[i - 0xc000],
             0xe000..=0xfdff => self.ram[i - 0xe000], // ram echo
@@ -57,9 +58,9 @@ impl Memory {
     }
 
     pub fn write_8(&mut self, i: usize, n: u8) {
-        match i {
+        match i { // TODO implement the "do nothing" and so from invalid regions
             0..=0x7fff => self.cart[i] = n,
-            0x8000..=0x9fff => panic!("vram not implemented"),
+            0x8000..=0x9fff => self.gpu.write_vram(i - 0x8000, n),
             0xa000..=0xbfff => self.switchable_ram[i - 0xa000] = n,
             0xc000..=0xdfff => self.ram[i - 0xc000] = n,
             0xe000..=0xfdff => self.ram[i - 0xe000] = n, // ram echo

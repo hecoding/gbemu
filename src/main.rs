@@ -2,6 +2,7 @@ mod memory;
 mod register;
 mod cpu;
 mod interrupt;
+mod gpu;
 mod utils;
 
 use cpu::CPU;
