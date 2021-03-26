@@ -67,7 +67,7 @@ impl CPU {
         }
     }
 
-    fn set_register(&mut self, i: u8, n: u8) {
+    fn set_register(&mut self, i: u8, n: u8) -> usize {
         match i {
             0 => self.register.b = n,
             1 => self.register.c = n,
@@ -79,6 +79,8 @@ impl CPU {
             7 => self.register.a = n,
             _ => panic!("Invalid register")
         }
+
+        if i == 6 { 12 } else { 4 }
     }
 
     fn get_bit_from_register(&self, register: u8, bit: u8) -> bool {
@@ -260,7 +262,7 @@ impl CPU {
             "00pp_1011" => { // dec nn
                 self.register.set_rp(p, self.register.get_rp(p).wrapping_sub(1));
             }
-            // misc
+            // misc (some in exec_alt)
             "1111_0011" => self.interrupt.delayed_disable = 2, // di
             "1111_1011" => self.interrupt.delayed_enable = 2, // ei
             // rotations and shifts
@@ -404,10 +406,57 @@ impl CPU {
         }
     }
 
+    fn rot(&mut self, y: u8, z: u8) -> usize {
+        let n = self.get_register(z);
+
+        match y {
+            0 => { // rlc n
+                let carry = (n & 0x80) != 0;
+                let cycles = self.set_register(z, (n << 1) + carry);
+
+                self.register.set_zero_flag(CPU::is_result_zero(n));
+                self.register.set_negative_flag(false);
+                self.register.set_half_carry_flag(false);
+                self.register.set_carry_flag(carry);
+                cycles
+            },
+            1 => { //
+                0
+            },
+            2 => { //
+                0
+            },
+            3 => { //
+                0
+            },
+            4 => { //
+                0
+            },
+            5 => { //
+                0
+            },
+            6 => { // swap n
+                let cycles = self.set_register(z, (n << 4) | (n >> 4));
+
+                self.register.set_zero_flag(CPU::is_result_zero(n));
+                self.register.set_negative_flag(false);
+                self.register.set_half_carry_flag(false);
+                self.register.set_carry_flag(false);
+                cycles
+            },
+            7 => { //
+                0
+            },
+            _ => panic!("Illegal rot opcode {}", y)
+        }
+    }
+
     #[bitmatch]
-    fn exec_alt(&mut self, op: u8) {
-        #[bitmatch]
+    fn exec_alt(&mut self, op: u8) -> usize {
+        (#[bitmatch]
         match op {
+            // misc
+
             // bit ops
             "01yy_yzzz" => { // bit b, r
                 let bit = self.get_bit_from_register(z, y);
@@ -423,7 +472,7 @@ impl CPU {
                 self.set_bit_from_register(z, y, false);
             }
             _ => panic!("Unimplemented 0xcb prefixed op {:x}", op)
-        }
+        }) + 4
     }
 
     fn interrupt_step(&mut self) -> usize {
