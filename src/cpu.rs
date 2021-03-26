@@ -29,7 +29,7 @@ impl CPU {
             n => return n,
         }
 
-        if self.halted { 1 } else { self.exec() }
+        if self.halted { 4 } else { self.exec() }
     }
 
     fn read_immediate_8(&mut self) -> u8 {
@@ -136,8 +136,8 @@ impl CPU {
         }
         #[bitmatch]
         match op {
-            "0000_0000" => {}, // no op
-            "0111_0110" => panic!("unimplemented halt"), // halt (overwriting a match below)
+            "0000_0000" => { 4 }, // no op
+            "0111_0110" => { self.halted = true; 4 }, // halt (overwriting a match below) TODO check if overwrites
             // 8-bit loads
             "00yy_y110" => { // ld r, n
                 let n = self.read_immediate_8();
@@ -330,7 +330,7 @@ impl CPU {
 
         println!("{:#x?}", self.register);
         println!("interrupt master {}, enable {}, flag {}", self.interrupt.master, self.memory.interrupt_enable, self.memory.interrupt_flag);
-        0
+        0 // todo remove this
     }
 
     fn alu(&mut self, y: u8, n: u8) {
@@ -435,7 +435,7 @@ impl CPU {
                 self.interrupt.master = false;
                 self.stack_push(self.register.pc);
                 self.register.pc = 0x40;
-                return 4
+                return 16 // todo are all 16 or 12?
             }
 
             if fired & (Interrupts::LCD as u8) != 0 {
@@ -443,7 +443,7 @@ impl CPU {
                 self.interrupt.master = false;
                 self.stack_push(self.register.pc);
                 self.register.pc = 0x48;
-                return 4
+                return 16
             }
 
             if fired & (Interrupts::Timer as u8) != 0 {
@@ -451,7 +451,7 @@ impl CPU {
                 self.interrupt.master = false;
                 self.stack_push(self.register.pc);
                 self.register.pc = 0x50;
-                return 4
+                return 16
             }
 
             if fired & (Interrupts::Transfer as u8) != 0 {
@@ -459,7 +459,7 @@ impl CPU {
                 self.interrupt.master = false;
                 self.stack_push(self.register.pc);
                 self.register.pc = 0x58;
-                return 4
+                return 16
             }
 
             if fired & (Interrupts::Keypad as u8) != 0 {
@@ -467,7 +467,7 @@ impl CPU {
                 self.interrupt.master = false;
                 self.stack_push(self.register.pc);
                 self.register.pc = 0x60;
-                return 4
+                return 16
             }
         }
         0
