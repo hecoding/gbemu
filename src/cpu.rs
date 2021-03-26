@@ -131,6 +131,8 @@ impl CPU {
     #[bitmatch]
     fn exec(&mut self) -> usize {
         let op = self.read_immediate_8();
+        println!("{:#x?}", self.register);
+        println!("interrupt master {}, enable {}, flag {}", self.interrupt.master, self.memory.interrupt_enable, self.memory.interrupt_flag);
         println!("-----------");
         println!("op {:x}", op);
         if op == 0x3e {
@@ -143,22 +145,26 @@ impl CPU {
             // 8-bit loads
             "00yy_y110" => { // ld r, n
                 let n = self.read_immediate_8();
-                self.set_register(y, n);
+                self.set_register(y, n)
             }
             "01yy_yzzz" => self.set_register(y, self.get_register(z)), // ld r1, r2
             "1110_1010" => { // ld (nn), a
                 let nn = self.read_immediate_16();
                 self.memory.write_8(nn as usize, self.register.a);
+                0
             }
             "1111_1010" => { // ld a, (nn)
                 let nn = self.read_immediate_16();
                 self.register.a = self.memory.read_8(nn as usize);
+                0
             }
             "1111_0010" => { // ld a, (c)
                 self.register.a = self.memory.read_8(0xff00 + self.register.c as usize);
+                0
             }
             "1110_0010" => { // ld (c), a
                 self.memory.write_8(0xff00 + self.register.c as usize, self.register.a);
+                0
             }
             "00pp_0010" => { // ld nn(+/-), a
                 self.memory.write_8(self.register.get_rp3(p) as usize, self.register.a);
@@ -166,6 +172,7 @@ impl CPU {
                 let hl = self.register.get_hl();
                 let hl_op = if p == 2 {hl.wrapping_add(1)} else if p == 3 {hl.wrapping_sub(1)} else {hl};
                 self.register.set_hl(hl_op);
+                0
             }
             "00pp_1010" => { // ld a, nn(+/-)
                 self.register.a = self.memory.read_8(self.register.get_rp3(p) as usize);
@@ -173,109 +180,128 @@ impl CPU {
                 let hl = self.register.get_hl();
                 let hl_op = if p == 2 {hl.wrapping_add(1)} else if p == 3 {hl.wrapping_sub(1)} else {hl};
                 self.register.set_hl(hl_op);
+                0
             }
             "1110_0000" => { // ldh (n), a
                 let n = self.read_immediate_8();
                 self.memory.write_8(0xff00 + n as usize, self.register.a);
+                0
             }
             "1111_0000" => { // ldh a, (n)
                 let n = self.read_immediate_8();
                 self.register.a = self.memory.read_8(0xff00 + n as usize);
+                0
             }
             // 16-bit loads
             "00pp_0001" => { // ld n, nn
                 let nn = self.read_immediate_16();
-                self.register.set_rp(p, nn)
+                self.register.set_rp(p, nn);
+                0
             }
-            "1111_1001" => self.register.sp = self.register.get_hl(), // ld sp, hl
+            "1111_1001" => { self.register.sp = self.register.get_hl(); 0 }, // ld sp, hl
             "1111_1000" => { // ld hl, sp+d
                 let sp = self.register.sp;
                 let d_raw = self.read_immediate_8();
                 let d = i16::from(d_raw as i8) as u16;
                 self.register.set_hl(sp.wrapping_add(d));
+                let cycles = 0;
 
                 self.register.set_zero_flag(false);
                 self.register.set_negative_flag(false);
                 self.register.set_half_carry_flag(CPU::is_carry_from_bit_16(4, sp, d));
                 self.register.set_carry_flag(CPU::is_carry_from_bit_16(8, sp, d));
+                cycles
             },
             "0000_1000" => { // ld (nn), sp
                 let nn = self.read_immediate_16();
-                self.memory.write_16(nn as usize, self.register.sp) // todo is this write lsf?
+                self.memory.write_16(nn as usize, self.register.sp); // todo is this write lsf?
+                0
             },
-            "11pp_0101" => self.stack_push(self.register.get_rp2(p)), // push nn
+            "11pp_0101" => { self.stack_push(self.register.get_rp2(p)); 0 }, // push nn
             "11pp_0001" => { // pop nn
                 let nn = self.stack_pop();
-                self.register.set_rp2(p, nn)
+                self.register.set_rp2(p, nn);
+                0
             },
             // 8-bit alu
             "11yy_y110" => { // alu n
                 let n = self.read_immediate_8();
                 self.alu(y, n);
+                0
             }
             "10yy_yzzz" => { // alu r
                 let n = self.get_register(z);
                 self.alu(y, n);
+                0
             }
             "00pp_p100" => { // inc n
                 let n = self.get_register(p);
                 let result = n.wrapping_add(1);
                 self.set_register(p, result);
+                let cycles = 0;
 
                 self.register.set_zero_flag(CPU::is_result_zero(result));
                 self.register.set_negative_flag(false);
                 self.register.set_half_carry_flag(CPU::is_carry_from_bit(3, n, 1));
+                cycles
             }
             "00pp_p101" => { // dec n
                 let n = self.get_register(p);
                 let result = n.wrapping_sub(1);
                 self.set_register(p, result);
+                let cycles = 0;
 
                 self.register.set_zero_flag(CPU::is_result_zero(result));
                 self.register.set_negative_flag(true);
                 self.register.set_half_carry_flag(CPU::is_no_borrow_from_bit(4, n, 1));
+                cycles
             }
             // 16-bit arithmetic
             "00pp_1001" => { // add hl, n
                 let hl = self.register.get_hl();
                 let n = self.register.get_rp(p);
                 self.register.set_hl(hl.wrapping_add(n));
+                let cycles = 0;
 
                 self.register.set_negative_flag(false);
                 self.register.set_half_carry_flag(CPU::is_carry_from_bit_16(11, hl, n));
                 self.register.set_carry_flag(CPU::is_carry_from_bit_16(15, hl, n));
+                cycles
             }
             "1110_1000" => { // add sp, n
                 let sp = self.register.sp;
                 let n_raw = self.read_immediate_8();
                 let n = i16::from(n_raw as i8) as u16;
                 self.register.sp = sp.wrapping_add(n);
+                let cycles = 0;
 
                 self.register.set_zero_flag(false);
                 self.register.set_negative_flag(false);
                 self.register.set_half_carry_flag(CPU::is_carry_from_bit_16(4, sp, n));
                 self.register.set_carry_flag(CPU::is_carry_from_bit_16(8, sp, n));
+                cycles
             }
             "00pp_0011" => { // inc nn
-                self.register.set_rp(p, self.register.get_rp(p).wrapping_add(1));
+                self.register.set_rp(p, self.register.get_rp(p).wrapping_add(1));0
             }
             "00pp_1011" => { // dec nn
-                self.register.set_rp(p, self.register.get_rp(p).wrapping_sub(1));
+                self.register.set_rp(p, self.register.get_rp(p).wrapping_sub(1));0
             }
             // misc (some in exec_alt)
-            "1111_0011" => self.interrupt.delayed_disable = 2, // di
-            "1111_1011" => self.interrupt.delayed_enable = 2, // ei
+            "1111_0011" => { self.interrupt.delayed_disable = 2; 0 } // di
+            "1111_1011" => { self.interrupt.delayed_enable = 2; 0 } // ei
             // rotations and shifts
             // bit ops (all in exec_alt)
             // jumps
-            "1100_0011" => self.register.pc = self.read_immediate_16(), // jp nn
+            "1100_0011" => { self.register.pc = self.read_immediate_16(); 0 } // jp nn
             "11yy_y010" => { // jp cc, nn
                 let nn = self.read_immediate_16(); // todo check if endianness is correct
                 if self.jump_condition_check(y) {
-                    self.register.pc = nn
+                    self.register.pc = nn;
                 }
+                0
             }
-            "1110_1001" => self.register.pc = self.register.get_hl(), // jp hl
+            "1110_1001" => { self.register.pc = self.register.get_hl(); 0 } // jp hl
             "0001_1000" => { // jr n
                 let n = self.read_immediate_8() as i8;
                 if n > 0 {
@@ -283,6 +309,7 @@ impl CPU {
                 } else {
                     self.register.pc = self.register.pc.wrapping_sub(n.abs() as u16)
                 }
+                0
             },
             "00yy_y000" => { // jr cc, n
                 let n = self.read_immediate_8() as i8;
@@ -293,46 +320,50 @@ impl CPU {
                         self.register.pc = self.register.pc.wrapping_sub(n.abs() as u16)
                     }
                 }
+                0
             }
             // calls
             "1100_1101" => { // call nn
                 self.stack_push(self.register.pc);
                 self.register.pc = self.read_immediate_16(); // todo check endianness
+                0
             }
             "11yy_y100" => { // call cc, nn
                 if self.jump_condition_check(y) {
                     self.stack_push(self.register.pc);
                     self.register.pc = self.read_immediate_16(); // todo check endianness
                 }
+                0
             }
             // restarts
             "11yy_y111" => { // rst n
                 self.stack_push(self.register.pc);
                 self.register.pc = y as u16 * 8;
+                0
             }
             // returns
             "1100_1001" => { // ret
                 self.register.pc = self.stack_pop(); // todo check if ok with current endianness
+                0
             }
             "11yy_y000" => { // ret cc
                 if self.jump_condition_check(y) {
                     self.register.pc = self.stack_pop(); // todo check if ok with current endianness
                 }
+                0
             }
             "1101_1001" => { // reti
                 self.register.pc = self.stack_pop(); // todo check if ok with current endianness
-                self.interrupt.master = true
+                self.interrupt.master = true;
+                0
             }
             "11001011" => { // cb prefix, using alt opcodes
                 let op_next = self.read_immediate_8();
                 self.exec_alt(op_next); // todo check if this reaches cb
+                0
             }
             _ => panic!("Unimplemented op {:x}", op)
         }
-
-        println!("{:#x?}", self.register);
-        println!("interrupt master {}, enable {}, flag {}", self.interrupt.master, self.memory.interrupt_enable, self.memory.interrupt_flag);
-        0 // todo remove this
     }
 
     fn alu(&mut self, y: u8, n: u8) {
@@ -412,7 +443,7 @@ impl CPU {
         match y {
             0 => { // rlc n
                 let carry = (n & 0x80) != 0;
-                let cycles = self.set_register(z, (n << 1) + carry);
+                let cycles = self.set_register(z, (n << 1) + carry as u8);
 
                 self.register.set_zero_flag(CPU::is_result_zero(n));
                 self.register.set_negative_flag(false);
@@ -464,12 +495,15 @@ impl CPU {
                 self.register.set_zero_flag(bit == false);
                 self.register.set_negative_flag(false);
                 self.register.set_half_carry_flag(true);
+                0
             }
             "11yy_yzzz" => { // set b, r
                 self.set_bit_from_register(z, y, true);
+                0
             }
             "10yy_yzzz" => { // res b, r
                 self.set_bit_from_register(z, y, false);
+                0
             }
             _ => panic!("Unimplemented 0xcb prefixed op {:x}", op)
         }) + 4
