@@ -288,6 +288,45 @@ impl CPU {
                 self.register.set_rp(p, self.register.get_rp(p).wrapping_sub(1));0
             }
             // misc (some in exec_alt)
+            "0010_0111" => { // daa
+                let a = self.register.a;
+                let mut adjust = if self.register.get_carry_flag() { 0x60 } else { 0x00 };
+
+                if self.register.get_bit(Flags::HalfCarry) {
+                    adjust |= 0x06;
+                }
+                if !self.register.get_bit(Flags::Negative) {
+                    if a & 0x0f > 0x09 { adjust |= 0x06; }
+                    if a > 0x99 { adjust |= 0x60; }
+                    self.register.a = a.wrapping_add(adjust);
+                } else {
+                    self.register.a = a.wrapping_sub(adjust);
+                }
+
+                self.register.set_zero_flag(CPU::is_result_zero(self.register.a));
+                self.register.set_half_carry_flag(false);
+                self.register.set_carry_flag(adjust >= 0x60);
+                0
+            }
+            "0010_1111" => { // cpl
+                self.register.a = !self.register.a;
+                self.register.set_negative_flag(true);
+                self.register.set_half_carry_flag(true);
+                0
+            }
+            "0011_1111" => { // ccf
+                self.register.set_negative_flag(false);
+                self.register.set_half_carry_flag(false);
+                self.register.set_carry_flag(!self.register.get_carry_flag());
+                0
+            }
+            "0011_0111" => { // scf
+                self.register.set_negative_flag(false);
+                self.register.set_half_carry_flag(false);
+                self.register.set_carry_flag(true);
+                0
+            }
+            "0001_0000" => { panic!("Unimplemented stop") } // stop todo what to do?
             "1111_0011" => { self.interrupt.delayed_disable = 2; 0 } // di
             "1111_1011" => { self.interrupt.delayed_enable = 2; 0 } // ei
             // rotations and shifts (some in exec_alt)
