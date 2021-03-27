@@ -290,7 +290,8 @@ impl CPU {
             // misc (some in exec_alt)
             "1111_0011" => { self.interrupt.delayed_disable = 2; 0 } // di
             "1111_1011" => { self.interrupt.delayed_enable = 2; 0 } // ei
-            // rotations and shifts
+            // rotations and shifts (some in exec_alt)
+            "000y_y111" => self.rot(y, 7),
             // bit ops (all in exec_alt)
             // jumps
             "1100_0011" => { self.register.pc = self.read_immediate_16(); 0 } // jp nn
@@ -484,6 +485,9 @@ impl CPU {
         (#[bitmatch]
         match op {
             // misc
+
+            // rotates shifts
+            "00yy_yzzz" => self.rot(y, z),
 
             // bit ops
             "01yy_yzzz" => { // bit b, r
