@@ -443,7 +443,7 @@ impl CPU {
         match y {
             0 => { // rlc n
                 let carry = (n & 0x80) != 0;
-                let cycles = self.set_register(z, (n << 1) + carry as u8);
+                let cycles = self.set_register(z, (n << 1) | carry as u8);
 
                 self.register.set_zero_flag(CPU::is_result_zero(n));
                 self.register.set_negative_flag(false);
@@ -451,20 +451,57 @@ impl CPU {
                 self.register.set_carry_flag(carry);
                 cycles
             },
-            1 => { //
-                0
+            1 => { // rrc n
+                let carry = (n & 0x1) != 0;
+                let cycles = self.set_register(z, (n >> 1) | (0x80 * carry as u8));
+
+                self.register.set_zero_flag(CPU::is_result_zero(n));
+                self.register.set_negative_flag(false);
+                self.register.set_half_carry_flag(false);
+                self.register.set_carry_flag(carry);
+                cycles
             },
-            2 => { //
-                0
+            2 => { // rl n
+                let carry = (n & 0x80) != 0;
+                let cycles = self.set_register(z, (n << 1) | self.register.get_carry_flag() as u8);
+
+                self.register.set_zero_flag(CPU::is_result_zero(n));
+                self.register.set_negative_flag(false);
+                self.register.set_half_carry_flag(false);
+                self.register.set_carry_flag(carry);
+                cycles
             },
-            3 => { //
-                0
+            3 => { // rr n
+                let carry = (n & 0x1) != 0;
+                let cycles = self.set_register(z, (n >> 1) | (0x80 * self.register.get_carry_flag() as u8));
+
+                self.register.set_zero_flag(CPU::is_result_zero(n));
+                self.register.set_negative_flag(false);
+                self.register.set_half_carry_flag(false);
+                self.register.set_carry_flag(carry);
+                cycles
             },
-            4 => { //
-                0
+            4 => { // sla n
+                let carry = (n & 0x80) != 0;
+                let result = n << 1;
+                let cycles = self.set_register(z, result);
+
+                self.register.set_zero_flag(CPU::is_result_zero(result));
+                self.register.set_negative_flag(false);
+                self.register.set_half_carry_flag(false);
+                self.register.set_carry_flag(carry);
+                cycles
             },
-            5 => { //
-                0
+            5 => { // sra n
+                let carry = (n & 0x1) != 0;
+                let result = n >> 1;
+                let cycles = self.set_register(z, result | (0x80 & n));
+
+                self.register.set_zero_flag(CPU::is_result_zero(result));
+                self.register.set_negative_flag(false);
+                self.register.set_half_carry_flag(false);
+                self.register.set_carry_flag(carry);
+                cycles
             },
             6 => { // swap n
                 let cycles = self.set_register(z, (n << 4) | (n >> 4));
@@ -475,8 +512,15 @@ impl CPU {
                 self.register.set_carry_flag(false);
                 cycles
             },
-            7 => { //
-                0
+            7 => { // srl n
+                let carry = (n & 0x1) != 0;
+                let cycles = self.set_register(z, (n >> 1) & !0x80);
+
+                self.register.set_zero_flag(CPU::is_result_zero(n));
+                self.register.set_negative_flag(false);
+                self.register.set_half_carry_flag(false);
+                self.register.set_carry_flag(carry);
+                cycles
             },
             _ => panic!("Illegal rot opcode {}", y)
         }
