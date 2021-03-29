@@ -23,7 +23,6 @@ impl CPU {
     }
 
     pub fn step(&mut self) -> usize {
-        self.interrupt.update_delays();
         match self.interrupt_step() {
             0 => {},
             n => return n,
@@ -550,6 +549,8 @@ impl CPU {
     }
 
     fn interrupt_step(&mut self) -> usize {
+        self.interrupt.update_delays();
+
         if self.interrupt.master && self.memory.interrupt_enable != 0 && self.memory.interrupt_flag != 0 {
             let fired = self.memory.interrupt_enable & self.memory.interrupt_flag;
 
