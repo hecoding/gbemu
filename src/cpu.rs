@@ -7,7 +7,7 @@ use crate::utils::{join_8_to_16, join_8_to_16_lsf};
 
 pub struct CPU {
     register: Register,
-    memory: Memory,
+    pub memory: Memory,
     interrupt: Interrupt,
     halted: bool,
 }

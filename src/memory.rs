@@ -1,6 +1,7 @@
 use std::fs::File;
 use std::io::Read;
 use crate::gpu::GPU;
+use crate::timer::Timer;
 use crate::utils::{join_8_to_16, split_16_to_8};
 
 pub struct Memory {
@@ -14,6 +15,7 @@ pub struct Memory {
 
     pub interrupt_enable: u8,
     pub interrupt_flag: u8,
+    timer: Timer,
 }
 
 const STACK_OFFSET: usize = 0xff80;
@@ -31,6 +33,7 @@ impl Memory {
 
             interrupt_enable: 0,
             interrupt_flag: 0,
+            timer: Timer::new(),
         }
     }
 
@@ -50,6 +53,7 @@ impl Memory {
             0xa000..=0xbfff => self.switchable_ram[i - 0xa000],
             0xc000..=0xdfff => self.ram[i - 0xc000],
             0xe000..=0xfdff => self.ram[i - 0xe000], // ram echo
+            0xff04..=0xff07 => self.timer.read(i),
             0xff0f => self.interrupt_flag,
             0xff80..=0xfffe => self.stack[i - STACK_OFFSET],
             0xffff => self.interrupt_enable,
@@ -64,6 +68,7 @@ impl Memory {
             0xa000..=0xbfff => self.switchable_ram[i - 0xa000] = n,
             0xc000..=0xdfff => self.ram[i - 0xc000] = n,
             0xe000..=0xfdff => self.ram[i - 0xe000] = n, // ram echo
+            0xff04..=0xff07 => self.timer.write(i, n),
             0xff0f => self.interrupt_flag = n,
             0xff80..=0xfffe => self.stack[i - STACK_OFFSET] = n,
             0xffff => self.interrupt_enable = n,
@@ -79,5 +84,9 @@ impl Memory {
         let ns = split_16_to_8(n);
         self.write_8(i, ns.0);
         self.write_8(i + 1, ns.1);
+    }
+
+    pub fn step(&self, cycles: usize) {
+
     }
 }
