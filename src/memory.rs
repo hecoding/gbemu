@@ -2,6 +2,7 @@ use std::fs::File;
 use std::io::Read;
 use crate::gpu::GPU;
 use crate::timer::Timer;
+use crate::cpu::Cycles;
 use crate::utils::{join_8_to_16, split_16_to_8};
 
 pub struct Memory {
@@ -86,7 +87,9 @@ impl Memory {
         self.write_8(i + 1, ns.1);
     }
 
-    pub fn step(&self, cycles: usize) {
-
+    pub fn step(&self, cycles: Cycles) {
+        self.timer.step(cycles);
+        self.timer.update_interrupt_flag(&self.interrupt_flag);
+        self.gpu.step(cycles);
     }
 }

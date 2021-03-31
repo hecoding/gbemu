@@ -1,3 +1,5 @@
+use crate::cpu::Cycles;
+
 pub struct Timer {
     divider: u8,
     counter: u8, // TIMA
@@ -45,14 +47,14 @@ impl Timer {
         }
     }
 
-    pub fn step(&self, cycles: usize) {
+    pub fn step(&self, cycles: Cycles) {
         let overflow = false;
         if overflow {
 
         }
     }
 
-    pub fn update_interrupt_flag(flags: &u8) {
+    pub fn update_interrupt_flag(&self, flags: &u8) {
         panic!("Unimplemented")
     }
 }

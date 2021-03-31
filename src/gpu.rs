@@ -1,3 +1,5 @@
+use crate::cpu::Cycles;
+
 #[derive(Copy,Clone)]
 enum PixelGrayScale {
     Zero,
@@ -59,5 +61,9 @@ impl GPU {
             self.tile_cache[tile_index][row_index][pixel_index] =
                 PixelGrayScale::from_bools(byte1 & mask != 0, byte2 & mask != 0);
         }
+    }
+
+    pub fn step(&self, cycles: Cycles) {
+
     }
 }
