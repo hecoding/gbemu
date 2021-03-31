@@ -14,8 +14,9 @@ fn main() {
     let cycles_per_frame: usize = (clock_frequency as f64 / frame_rate).round() as usize;
 
     let mut cpu = CPU::new("roms/Tetris (World) (Rev A).gb");
+    let mut cycles: usize = 0; // TODO usize or u32?
     loop {
-        let mut cycles: usize = 0; // TODO usize or u32?
+        cycles = 0;
         while cycles < cycles_per_frame {
             cycles += cpu.step();
         }
