@@ -5,6 +5,8 @@ use crate::register::{Register, Flags};
 use crate::interrupt::{Interrupt, Interrupts};
 use crate::utils::{join_8_to_16, join_8_to_16_lsf};
 
+pub type Cycles = usize;
+
 pub struct CPU {
     register: Register,
     pub memory: Memory,
@@ -22,7 +24,7 @@ impl CPU {
         }
     }
 
-    pub fn step(&mut self) -> usize {
+    pub fn step(&mut self) -> Cycles {
         match self.interrupt_step() {
             0 => {},
             n => return n,
@@ -66,7 +68,7 @@ impl CPU {
         }
     }
 
-    fn set_register(&mut self, i: u8, n: u8) -> usize {
+    fn set_register(&mut self, i: u8, n: u8) {
         match i {
             0 => self.register.b = n,
             1 => self.register.c = n,
@@ -78,8 +80,10 @@ impl CPU {
             7 => self.register.a = n,
             _ => panic!("Invalid register")
         }
+    }
 
-        if i == 6 { 12 } else { 4 }
+    fn register_cycles(i: u8, alu: bool, immediate: bool) -> Cycles {
+        if i == 6 { if alu { 8 } else { 12 } } else { if immediate { 8 } else { 4 } }
     }
 
     fn get_bit_from_register(&self, register: u8, bit: u8) -> bool {
@@ -128,7 +132,7 @@ impl CPU {
     }
 
     #[bitmatch]
-    fn exec(&mut self) -> usize {
+    fn exec(&mut self) -> Cycles {
         let op = self.read_immediate_8();
         println!("{:#x?}", self.register);
         println!("interrupt master {}, enable {}, flag {}", self.interrupt.master, self.memory.interrupt_enable, self.memory.interrupt_flag);
@@ -144,147 +148,150 @@ impl CPU {
             // 8-bit loads
             "00yy_y110" => { // ld r, n
                 let n = self.read_immediate_8();
-                self.set_register(y, n)
+                self.set_register(y, n);
+                CPU::register_cycles(y, false, true)
             }
-            "01yy_yzzz" => self.set_register(y, self.get_register(z)), // ld r1, r2
+            "01yy_yzzz" => { // ld r1, r2
+                self.set_register(y, self.get_register(z));
+                CPU::register_cycles(y, false, false)
+            }
             "1110_1010" => { // ld (nn), a
                 let nn = self.read_immediate_16();
                 self.memory.write_8(nn as usize, self.register.a);
-                0
+                16
             }
             "1111_1010" => { // ld a, (nn)
                 let nn = self.read_immediate_16();
                 self.register.a = self.memory.read_8(nn as usize);
-                0
+                16
             }
             "1111_0010" => { // ld a, (c)
                 self.register.a = self.memory.read_8(0xff00 + self.register.c as usize);
-                0
+                8
             }
             "1110_0010" => { // ld (c), a
                 self.memory.write_8(0xff00 + self.register.c as usize, self.register.a);
-                0
+                8
             }
             "00pp_0010" => { // ld nn(+/-), a
                 self.memory.write_8(self.register.get_rp3(p) as usize, self.register.a);
 
-                let hl = self.register.get_hl();
-                let hl_op = if p == 2 {hl.wrapping_add(1)} else if p == 3 {hl.wrapping_sub(1)} else {hl};
-                self.register.set_hl(hl_op);
-                0
+                if p == 3 { // TODO check whether this if enters sometimes or constant
+                    let hl = self.register.get_hl();
+                    let hl_op = if p == 2 {hl.wrapping_add(1)} else if p == 3 {hl.wrapping_sub(1)} else {hl};
+                    self.register.set_hl(hl_op);
+                }
+                8
             }
             "00pp_1010" => { // ld a, nn(+/-)
                 self.register.a = self.memory.read_8(self.register.get_rp3(p) as usize);
 
-                let hl = self.register.get_hl();
-                let hl_op = if p == 2 {hl.wrapping_add(1)} else if p == 3 {hl.wrapping_sub(1)} else {hl};
-                self.register.set_hl(hl_op);
-                0
+                if p == 3 { // TODO check whether this if enters sometimes or constant
+                    let hl = self.register.get_hl();
+                    let hl_op = if p == 2 { hl.wrapping_add(1) } else if p == 3 { hl.wrapping_sub(1) } else { hl };
+                    self.register.set_hl(hl_op);
+                }
+                8
             }
             "1110_0000" => { // ldh (n), a
                 let n = self.read_immediate_8();
                 self.memory.write_8(0xff00 + n as usize, self.register.a);
-                0
+                12
             }
             "1111_0000" => { // ldh a, (n)
                 let n = self.read_immediate_8();
                 self.register.a = self.memory.read_8(0xff00 + n as usize);
-                0
+                12
             }
             // 16-bit loads
             "00pp_0001" => { // ld n, nn
                 let nn = self.read_immediate_16();
                 self.register.set_rp(p, nn);
-                0
+                12
             }
-            "1111_1001" => { self.register.sp = self.register.get_hl(); 0 }, // ld sp, hl
+            "1111_1001" => { self.register.sp = self.register.get_hl(); 8 }, // ld sp, hl
             "1111_1000" => { // ld hl, sp+d
                 let sp = self.register.sp;
                 let d_raw = self.read_immediate_8();
                 let d = i16::from(d_raw as i8) as u16;
                 self.register.set_hl(sp.wrapping_add(d));
-                let cycles = 0;
 
                 self.register.set_zero_flag(false);
                 self.register.set_negative_flag(false);
                 self.register.set_half_carry_flag(CPU::is_carry_from_bit_16(4, sp, d));
                 self.register.set_carry_flag(CPU::is_carry_from_bit_16(8, sp, d));
-                cycles
+                12
             },
             "0000_1000" => { // ld (nn), sp
                 let nn = self.read_immediate_16();
                 self.memory.write_16(nn as usize, self.register.sp); // todo is this write lsf?
-                0
+                20
             },
-            "11pp_0101" => { self.stack_push(self.register.get_rp2(p)); 0 }, // push nn
+            "11pp_0101" => { self.stack_push(self.register.get_rp2(p)); 16 }, // push nn
             "11pp_0001" => { // pop nn
                 let nn = self.stack_pop();
                 self.register.set_rp2(p, nn);
-                0
+                12
             },
             // 8-bit alu
             "11yy_y110" => { // alu n
                 let n = self.read_immediate_8();
                 self.alu(y, n);
-                0
+                8
             }
             "10yy_yzzz" => { // alu r
                 let n = self.get_register(z);
                 self.alu(y, n);
-                0
+                CPU::register_cycles(y, true, false)
             }
             "00pp_p100" => { // inc n
                 let n = self.get_register(p);
                 let result = n.wrapping_add(1);
                 self.set_register(p, result);
-                let cycles = 0;
 
                 self.register.set_zero_flag(CPU::is_result_zero(result));
                 self.register.set_negative_flag(false);
                 self.register.set_half_carry_flag(CPU::is_carry_from_bit(3, n, 1));
-                cycles
+                CPU::register_cycles(p, false, false)
             }
             "00pp_p101" => { // dec n
                 let n = self.get_register(p);
                 let result = n.wrapping_sub(1);
                 self.set_register(p, result);
-                let cycles = 0;
 
                 self.register.set_zero_flag(CPU::is_result_zero(result));
                 self.register.set_negative_flag(true);
                 self.register.set_half_carry_flag(CPU::is_no_borrow_from_bit(4, n, 1));
-                cycles
+                CPU::register_cycles(p, false, false)
             }
             // 16-bit arithmetic
             "00pp_1001" => { // add hl, n
                 let hl = self.register.get_hl();
                 let n = self.register.get_rp(p);
                 self.register.set_hl(hl.wrapping_add(n));
-                let cycles = 0;
 
                 self.register.set_negative_flag(false);
                 self.register.set_half_carry_flag(CPU::is_carry_from_bit_16(11, hl, n));
                 self.register.set_carry_flag(CPU::is_carry_from_bit_16(15, hl, n));
-                cycles
+                8
             }
             "1110_1000" => { // add sp, n
                 let sp = self.register.sp;
                 let n_raw = self.read_immediate_8();
                 let n = i16::from(n_raw as i8) as u16;
                 self.register.sp = sp.wrapping_add(n);
-                let cycles = 0;
 
                 self.register.set_zero_flag(false);
                 self.register.set_negative_flag(false);
                 self.register.set_half_carry_flag(CPU::is_carry_from_bit_16(4, sp, n));
                 self.register.set_carry_flag(CPU::is_carry_from_bit_16(8, sp, n));
-                cycles
+                16
             }
             "00pp_0011" => { // inc nn
-                self.register.set_rp(p, self.register.get_rp(p).wrapping_add(1));0
+                self.register.set_rp(p, self.register.get_rp(p).wrapping_add(1)); 8
             }
             "00pp_1011" => { // dec nn
-                self.register.set_rp(p, self.register.get_rp(p).wrapping_sub(1));0
+                self.register.set_rp(p, self.register.get_rp(p).wrapping_sub(1)); 8
             }
             // misc (some in exec_alt)
             "0010_0111" => { // daa
@@ -305,42 +312,42 @@ impl CPU {
                 self.register.set_zero_flag(CPU::is_result_zero(self.register.a));
                 self.register.set_half_carry_flag(false);
                 self.register.set_carry_flag(adjust >= 0x60);
-                0
+                4
             }
             "0010_1111" => { // cpl
                 self.register.a = !self.register.a;
                 self.register.set_negative_flag(true);
                 self.register.set_half_carry_flag(true);
-                0
+                4
             }
             "0011_1111" => { // ccf
                 self.register.set_negative_flag(false);
                 self.register.set_half_carry_flag(false);
                 self.register.set_carry_flag(!self.register.get_carry_flag());
-                0
+                4
             }
             "0011_0111" => { // scf
                 self.register.set_negative_flag(false);
                 self.register.set_half_carry_flag(false);
                 self.register.set_carry_flag(true);
-                0
+                4
             }
-            "0001_0000" => { panic!("Unimplemented stop") } // stop todo what to do?
-            "1111_0011" => { self.interrupt.delayed_disable = 2; 0 } // di
-            "1111_1011" => { self.interrupt.delayed_enable = 2; 0 } // ei
+            "0001_0000" => { panic!("Unimplemented stop"); 4 } // stop todo what to do?
+            "1111_0011" => { self.interrupt.delayed_disable = 2; 4 } // di
+            "1111_1011" => { self.interrupt.delayed_enable = 2; 4 } // ei
             // rotations and shifts (some in exec_alt)
             "000y_y111" => self.rot(y, 7),
             // bit ops (all in exec_alt)
             // jumps
-            "1100_0011" => { self.register.pc = self.read_immediate_16(); 0 } // jp nn
+            "1100_0011" => { self.register.pc = self.read_immediate_16(); 16 } // jp nn
             "11yy_y010" => { // jp cc, nn
                 let nn = self.read_immediate_16(); // todo check if endianness is correct
                 if self.jump_condition_check(y) {
                     self.register.pc = nn;
-                }
-                0
+                    16
+                } else { 12 }
             }
-            "1110_1001" => { self.register.pc = self.register.get_hl(); 0 } // jp hl
+            "1110_1001" => { self.register.pc = self.register.get_hl(); 4 } // jp hl
             "0001_1000" => { // jr n
                 let n = self.read_immediate_8() as i8;
                 if n > 0 {
@@ -348,7 +355,7 @@ impl CPU {
                 } else {
                     self.register.pc = self.register.pc.wrapping_sub(n.abs() as u16)
                 }
-                0
+                12
             },
             "00yy_y000" => { // jr cc, n
                 let n = self.read_immediate_8() as i8;
@@ -358,48 +365,47 @@ impl CPU {
                     } else {
                         self.register.pc = self.register.pc.wrapping_sub(n.abs() as u16)
                     }
-                }
-                0
+                    12
+                } else { 8 }
             }
             // calls
             "1100_1101" => { // call nn
                 self.stack_push(self.register.pc);
                 self.register.pc = self.read_immediate_16(); // todo check endianness
-                0
+                24
             }
             "11yy_y100" => { // call cc, nn
                 if self.jump_condition_check(y) {
                     self.stack_push(self.register.pc);
                     self.register.pc = self.read_immediate_16(); // todo check endianness
-                }
-                0
+                    24
+                } else { 12 }
             }
             // restarts
             "11yy_y111" => { // rst n
                 self.stack_push(self.register.pc);
                 self.register.pc = y as u16 * 8;
-                0
+                16
             }
             // returns
             "1100_1001" => { // ret
                 self.register.pc = self.stack_pop(); // todo check if ok with current endianness
-                0
+                16
             }
             "11yy_y000" => { // ret cc
                 if self.jump_condition_check(y) {
                     self.register.pc = self.stack_pop(); // todo check if ok with current endianness
-                }
-                0
+                    20
+                } else { 8 }
             }
             "1101_1001" => { // reti
                 self.register.pc = self.stack_pop(); // todo check if ok with current endianness
                 self.interrupt.master = true;
-                0
+                16
             }
             "11001011" => { // cb prefix, using alt opcodes
                 let op_next = self.read_immediate_8();
-                self.exec_alt(op_next); // todo check if this reaches cb
-                0
+                self.exec_alt(op_next) // todo check if this reaches cb
             }
             _ => panic!("Unimplemented op {:x}", op)
         }
@@ -476,7 +482,7 @@ impl CPU {
         }
     }
 
-    fn rot(&mut self, y: u8, z: u8) -> usize {
+    fn rot(&mut self, y: u8, z: u8) -> Cycles {
         let n = self.get_register(z);
 
         let (carry, result) = match y {
@@ -509,20 +515,21 @@ impl CPU {
             _ => panic!("Illegal rot opcode {}", y)
         };
 
-        let cycles = self.set_register(z, result);
+        self.set_register(z, result);
 
         self.register.set_zero_flag(CPU::is_result_zero(result));
         self.register.set_negative_flag(false);
         self.register.set_half_carry_flag(false);
         self.register.set_carry_flag(carry);
-        cycles
+
+        CPU::register_cycles(z, false, false)
     }
 
     #[bitmatch]
-    fn exec_alt(&mut self, op: u8) -> usize {
+    fn exec_alt(&mut self, op: u8) -> Cycles {
         (#[bitmatch]
         match op {
-            // misc
+            // misc (swap in rot)
 
             // rotates shifts
             "00yy_yzzz" => self.rot(y, z),
@@ -534,21 +541,21 @@ impl CPU {
                 self.register.set_zero_flag(bit == false);
                 self.register.set_negative_flag(false);
                 self.register.set_half_carry_flag(true);
-                0
+                CPU::register_cycles(z, true, false)
             }
             "11yy_yzzz" => { // set b, r
                 self.set_bit_from_register(z, y, true);
-                0
+                CPU::register_cycles(z, false, false)
             }
             "10yy_yzzz" => { // res b, r
                 self.set_bit_from_register(z, y, false);
-                0
+                CPU::register_cycles(z, false, false)
             }
             _ => panic!("Unimplemented 0xcb prefixed op {:x}", op)
         }) + 4
     }
 
-    fn interrupt_step(&mut self) -> usize {
+    fn interrupt_step(&mut self) -> Cycles {
         self.interrupt.update_delays();
 
         if self.interrupt.master && self.memory.interrupt_enable != 0 && self.memory.interrupt_flag != 0 {
