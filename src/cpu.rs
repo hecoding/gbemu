@@ -117,7 +117,7 @@ impl CPU {
     }
 
     fn is_no_borrow_from_bit(bit: u8, op1: u8, op2: u8) -> bool {
-        let mask = (1 << bit) - 1;
+        let mask = ((1 << (bit as u16)) - 1) as u8; // todo ugly u16 cast
         (op1 & mask) < (op2 & mask)
     }
 
@@ -134,13 +134,10 @@ impl CPU {
     #[bitmatch]
     fn exec(&mut self) -> Cycles {
         let op = self.read_immediate_8();
-        println!("{:#x?}", self.register);
-        println!("interrupt master {}, enable {}, flag {}", self.interrupt.master, self.memory.interrupt_enable, self.memory.interrupt_flag);
-        println!("-----------");
-        println!("op {:x}", op);
-        if op == 0x3e {
-            println!("yeee")
-        }
+        // println!("{:#x?}", self.register);
+        // println!("interrupt master {}, enable {}, flag {}", self.interrupt.master, self.memory.interrupt_enable, self.memory.interrupt_flag);
+        // println!("-----------");
+        // println!("op {:x}", op);
         #[bitmatch]
         match op {
             "0000_0000" => { 4 }, // no op
@@ -176,7 +173,7 @@ impl CPU {
             "00pp_0010" => { // ld nn(+/-), a
                 self.memory.write_8(self.register.get_rp3(p) as usize, self.register.a);
 
-                if p == 3 { // TODO check whether this if enters sometimes or constant
+                if p == 2 || p == 3 { // TODO ugly
                     let hl = self.register.get_hl();
                     let hl_op = if p == 2 {hl.wrapping_add(1)} else if p == 3 {hl.wrapping_sub(1)} else {hl};
                     self.register.set_hl(hl_op);
@@ -186,7 +183,7 @@ impl CPU {
             "00pp_1010" => { // ld a, nn(+/-)
                 self.register.a = self.memory.read_8(self.register.get_rp3(p) as usize);
 
-                if p == 3 { // TODO check whether this if enters sometimes or constant
+                if p == 2 || p == 3 { // TODO ugly
                     let hl = self.register.get_hl();
                     let hl_op = if p == 2 { hl.wrapping_add(1) } else if p == 3 { hl.wrapping_sub(1) } else { hl };
                     self.register.set_hl(hl_op);
@@ -370,16 +367,16 @@ impl CPU {
             }
             // calls
             "1100_1101" => { // call nn
-                self.stack_push(self.register.pc);
+                self.stack_push(self.register.pc + 2);
                 self.register.pc = self.read_immediate_16(); // todo check endianness
                 24
             }
             "11yy_y100" => { // call cc, nn
                 if self.jump_condition_check(y) {
-                    self.stack_push(self.register.pc);
+                    self.stack_push(self.register.pc + 2);
                     self.register.pc = self.read_immediate_16(); // todo check endianness
                     24
-                } else { 12 }
+                } else { self.register.pc += 2; 12 }
             }
             // restarts
             "11yy_y111" => { // rst n
@@ -439,7 +436,7 @@ impl CPU {
                 self.register.set_zero_flag(CPU::is_result_zero(self.register.a));
                 self.register.set_negative_flag(true);
                 self.register.set_half_carry_flag(CPU::is_no_borrow_from_bit(4, a, n));
-                self.register.set_carry_flag(CPU::is_no_borrow_from_bit(1, a, n));
+                self.register.set_carry_flag(CPU::is_no_borrow_from_bit(8, a, n));
             },
             3 => { // sbc a
                 let n = n.wrapping_sub(carry_flag);
