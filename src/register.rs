@@ -67,7 +67,7 @@ impl Register {
     pub fn set_rp2(&mut self, i: u8, n: u16) {
         let ns = split_16_to_8(n);
         match i {
-            3 => {self.a = ns.0; self.f = ns.1},
+            3 => {self.a = ns.0; self.f = ns.1 & 0xf0},
             _ => self.set_rp(i, n)
         }
     }
